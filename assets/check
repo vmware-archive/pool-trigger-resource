@@ -22,6 +22,10 @@ branch=$(jq -r '.source.branch // ""' < $payload)
 pool_name=$(jq -r '.source.pool // ""' < $payload)
 ref=$(jq -r '.version.ref // ""' < $payload)
 
+# uri=git@github.com:cfmobile/environment-pool.git
+# branch=master
+# pool_name=trigger-test
+# ref=HEAD~100
 
 if [ -z "$uri" ]; then
   config_errors="${config_errors}invalid payload (missing uri)\n"
@@ -56,29 +60,18 @@ else
   cd $destination
 fi
 
-# count all added locks
-$num_current_locks=`ls $pool_name/unclaimed | wc -l`
-
-  if [ -n "$ref" ] && git cat-file -e "$ref"; then
-    git checkout $ref
-    num_previous_locks=`ls $pool_name/unclaimed | wc -l`
-    git checkout $branch
-  else
-    num_previous_locks=0
-  fi
-
-num_new_locks=$num
-
-
 # if triggers file does not exist create it with value 0
 if [ ! -f $pool_name/.pending-triggers ]; then
-  echo 0 > $pool_name/.pending-triggers
+  original_locks=$(ls $pool_name/unclaimed | wc -l)
+  echo $original_locks > $pool_name/.pending-triggers
 fi
 
 typeset -i old_pending_triggers=$(cat $pool_name/.pending-triggers)
 typeset -i new_pending_triggers=$(git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/ | grep "^A" |wc -l)
 
-total_pending_triggers=$($old_pending_triggers + $new_pending_triggers)
+git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/
+
+total_pending_triggers=$((old_pending_triggers + new_pending_triggers))
 
 # if triggers == locks then exit 0
 if [ $((old_pending_triggers + new_pending_triggers)) -eq 0 ]; then 
@@ -94,9 +87,9 @@ else
   result=$(git log -1 --pretty='format:%H' -- $pool_name/unclaimed)
 fi
 
-echo git add $pool_name/.pending-triggers
-echo git commit -m "updates tally of pending triggers in $pool_name to $total_pending_triggers"
-echo git pull --rebase
-echo git push
+git add $pool_name/.pending-triggers
+git commit -m "updates tally of pending triggers in $pool_name to $total_pending_triggers"
+git pull --rebase
+git push
 
 echo $result | jq -R '.' | jq -s "map({ref: .})" >&3
