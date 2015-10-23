@@ -66,8 +66,8 @@ if [ ! -f $pool_name/.pending-triggers ]; then
   echo $original_locks > $pool_name/.pending-triggers
 fi
 
-typeset -i old_pending_triggers=$(cat $pool_name/.pending-triggers)
-typeset -i new_pending_triggers=$(git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/ | grep "^A" |wc -l)
+old_pending_triggers=$(cat $pool_name/.pending-triggers)
+new_pending_triggers=$(git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/ | grep "^A" |wc -l)
 
 git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/
 
