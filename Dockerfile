@@ -1,4 +1,4 @@
-FROM concourse/busyboxplus:git
+FROM cfmobile/bosh-release
 
 ENV LANG C
 

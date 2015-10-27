@@ -15,7 +15,6 @@ payload=$TMPDIR/git-resource-request
 
 cat > $payload <&0
 
-load_pubkey $payload
 
 uri=$(jq -r '.source.uri // ""' < $payload)
 branch=$(jq -r '.source.branch // ""' < $payload)
@@ -44,6 +43,20 @@ if [ -n "$config_errors" ]; then
   exit 1
 fi
 
+###########
+#
+# end processing inputs
+#
+###########
+
+###########
+#
+# start git setup
+#
+###########
+
+load_pubkey $payload
+
 destination=$TMPDIR/git-resource-repo-cache
 
 if [ -d $destination ]; then
@@ -60,36 +73,79 @@ else
   cd $destination
 fi
 
+git config user.name pcf-toronto-ci-bot
+git config user.email tpt-team+cibot@pivotal.io
+
+###########
+#
+# end git setup
+#
+###########
+
+
+###########
+#
+# start calculating pending triggers
+#
+###########
+
+
 # if triggers file does not exist create it with value 0
-if [ ! -f $pool_name/.pending-triggers ]; then
-  original_locks=$(ls $pool_name/unclaimed | wc -l)
-  echo $original_locks > $pool_name/.pending-triggers
-fi
-
-old_pending_triggers=$(cat $pool_name/.pending-triggers)
-new_pending_triggers=$(git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/ | grep "^A" |wc -l)
-
-git show --pretty="format:" --name-status -r $ref..HEAD -- ./$pool_name/unclaimed/
-
-total_pending_triggers=$((old_pending_triggers + new_pending_triggers))
-
-# if triggers == locks then exit 0
-if [ $((old_pending_triggers + new_pending_triggers)) -eq 0 ]; then 
-  echo '[]' >&3
-  exit 0
-fi
-
-echo $((total_pending_triggers - 1)) > $pool_name/.pending-triggers
 
 if [ -n "$ref" ] && git cat-file -e "$ref"; then
-  result=$(git log --reverse ${ref}..HEAD --pretty='format:%H' -- $pool_name/unclaimed)
+  new_pending_triggers=$(git show --pretty="format:" --name-status -r $ref..HEAD -- $pool_name/unclaimed/ | grep "^A" |wc -l)
+  old_pending_triggers=$(cat $pool_name/.pending-triggers)
+  total_pending_triggers=$((old_pending_triggers + new_pending_triggers))
 else
-  result=$(git log -1 --pretty='format:%H' -- $pool_name/unclaimed)
+  total_pending_triggers=$(ls $pool_name/unclaimed  | wc -l)
 fi
 
-git add $pool_name/.pending-triggers
-git commit -m "updates tally of pending triggers in $pool_name to $total_pending_triggers"
-git pull --rebase
-git push
+###########
+#
+# end calculating pending triggers
+#
+###########
 
-echo $result | jq -R '.' | jq -s "map({ref: .})" >&3
+
+###########
+#
+# start handling results
+#
+###########
+
+if [ $total_pending_triggers -gt 0 ]; then 
+  last_commit=$(git log -1 --pretty='format:%H')
+  result=$(echo $last_commit | jq -R '.' | jq -s "map({ref: .})")
+else 
+  result="[]"
+fi
+
+###########
+#
+# end handling results
+#
+###########
+
+
+
+###########
+#
+# start updating triggers
+#
+###########
+
+if [ $total_pending_triggers -gt 0 ]; then 
+  echo $((total_pending_triggers - 1)) > $pool_name/.pending-triggers
+  git add $pool_name/.pending-triggers
+  git commit --allow-empty -m "updates tally of pending triggers in $pool_name to $((total_pending_triggers - 1))"
+  git push
+fi
+
+###########
+#
+# end updating triggers
+#
+###########
+
+echo $result >&3
+
