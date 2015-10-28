@@ -1,0 +1,103 @@
+---
+resources:
+  - name: red-resource
+    type: pool
+    source:
+      uri: git@github.com:cfmobile/environment-pool.git
+      branch: {{environment-pool-branch}}
+      pool: pooltriggertest/red
+      private_key: {{ci-bot-key}}
+
+  - name: blue-resource
+    type: pool
+    source:
+      uri: git@github.com:cfmobile/environment-pool.git
+      branch: {{environment-pool-branch}}
+      pool: pooltriggertest/blue
+      private_key: {{ci-bot-key}}
+
+  - name: red-trigger
+    type: pool-trigger
+    source:
+      uri: git@github.com:cfmobile/environment-pool.git
+      branch: {{environment-pool-branch}}
+      pool: pooltriggertest/red
+      private_key: {{ci-bot-key}}
+
+  - name: blue-trigger
+    type: pool-trigger
+    source:
+      uri: git@github.com:cfmobile/environment-pool.git
+      branch: {{environment-pool-branch}}
+      pool: pooltriggertest/blue
+      private_key: {{ci-bot-key}}
+
+jobs:
+  - name: red-to-blue
+    plan:
+      - do:
+        - get: red-trigger
+          trigger: true
+        - put: red-resource-input
+          resource: red-resource
+          params:
+            acquire: true
+          timeout: 2m
+        - task: run
+          privileged: true
+          config:
+            platform: linux
+            inputs:
+              - name: red-trigger
+              - name: red-resource-input
+            run:
+              path: sleep
+              args: ["1"]
+        on_success:
+          do:
+          - put: blue-resource
+            params:
+              add: red-resource-input
+          - put: red-resource
+            params:
+              remove: red-resource-input
+        on_failure:
+          do:
+            - put: red-resource
+              params:
+                release: red-resource-input
+
+
+  - name: blue-to-red
+    plan:
+      - do:
+        - get: blue-trigger
+          trigger: true
+        - put: blue-resource-input
+          resource: blue-resource
+          params:
+            acquire: true
+          timeout: 2m
+        - task: run
+          privileged: true
+          config:
+            platform: linux
+            inputs:
+              - name: blue-trigger
+              - name: blue-resource-input
+            run:
+              path: sleep
+              args: ["1"]
+        on_success:
+          do:
+          - put: red-resource
+            params:
+              add: blue-resource-input
+          - put: blue-resource
+            params:
+              remove: blue-resource-input
+        on_failure:
+          do:
+            - put: blue-resource
+              params:
+                release: blue-resource-input
