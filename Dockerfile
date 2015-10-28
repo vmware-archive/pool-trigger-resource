@@ -1,4 +1,4 @@
-FROM cfmobile/bosh-release
+FROM concourse/busyboxplus:git
 
 ENV LANG C
 
@@ -7,3 +7,6 @@ RUN chmod +x /usr/local/bin/jq
 
 ADD assets/ /opt/resource/
 RUN chmod +rx /opt/resource/*
+
+ADD tests/ /opt/resource-tests
+RUN /opt/resource-tests/check.sh
