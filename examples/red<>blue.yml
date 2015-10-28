@@ -4,7 +4,7 @@ resources:
     type: pool
     source:
       uri: git@github.com:cfmobile/environment-pool.git
-      branch: {{environment-pool-branch}}
+      branch: trigger-test
       pool: pooltriggertest/red
       private_key: {{ci-bot-key}}
 
@@ -12,7 +12,7 @@ resources:
     type: pool
     source:
       uri: git@github.com:cfmobile/environment-pool.git
-      branch: {{environment-pool-branch}}
+      branch: trigger-test
       pool: pooltriggertest/blue
       private_key: {{ci-bot-key}}
 
@@ -20,7 +20,7 @@ resources:
     type: pool-trigger
     source:
       uri: git@github.com:cfmobile/environment-pool.git
-      branch: {{environment-pool-branch}}
+      branch: trigger-test
       pool: pooltriggertest/red
       private_key: {{ci-bot-key}}
 
@@ -28,7 +28,7 @@ resources:
     type: pool-trigger
     source:
       uri: git@github.com:cfmobile/environment-pool.git
-      branch: {{environment-pool-branch}}
+      branch: trigger-test
       pool: pooltriggertest/blue
       private_key: {{ci-bot-key}}
 
