@@ -51,7 +51,7 @@ no-op
    between fetching and pushing the tally. It should resolve itself on 
    the next check with no intervention.
 2. If a build fails before the claim step happens (usually due to a concourse/aws connection error) it will be necessary to manually re-trigger the build.
-2. If a lock is removed from the pool by anthing other than the job that
+2. If a lock is removed from the pool by anything other than the job that
    was triggered then the triggered job will at some point attempt to
    claim a lock from an empty pool. This can be safely ignored and the
    pool-trigger will behave as normal in the future.
