@@ -1,4 +1,4 @@
-# pool-trigger
+# pool-trigger-resource
 A resource solely for triggering concourse builds when resources are
 added to pools.
 
