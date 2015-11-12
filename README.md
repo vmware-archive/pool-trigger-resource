@@ -57,5 +57,4 @@ no-op
    pool-trigger will behave as normal in the future.
 3. If for any reason things get all wonky (e.g. `.pending-triggers`
    contains a negative number) things can be reset by recreating the
-   pool-trigger resource in concourse (by deleting and recreating it or
-   renaming it and naming it back again or something).
+   pool-trigger resource in concourse (by deleting and recreating it or something).
