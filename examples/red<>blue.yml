@@ -3,33 +3,33 @@ resources:
   - name: red-resource
     type: pool
     source:
-      uri: git@github.com:cfmobile/environment-pool.git
-      branch: trigger-test
-      pool: pooltriggertest/red
+      uri: git@github.com:cfmobile/pool-trigger-resource.git
+      branch: examples
+      pool: examples/pools/red
       private_key: {{ci-bot-key}}
 
   - name: blue-resource
     type: pool
     source:
-      uri: git@github.com:cfmobile/environment-pool.git
-      branch: trigger-test
-      pool: pooltriggertest/blue
+      uri: git@github.com:cfmobile/pool-trigger-resource.git
+      branch: examples
+      pool: examples/pools/blue
       private_key: {{ci-bot-key}}
 
   - name: red-trigger
     type: pool-trigger
     source:
-      uri: git@github.com:cfmobile/environment-pool.git
-      branch: trigger-test
-      pool: pooltriggertest/red
+      uri: git@github.com:cfmobile/pool-trigger-resource.git
+      branch: examples
+      pool: examples/pools/red
       private_key: {{ci-bot-key}}
 
   - name: blue-trigger
     type: pool-trigger
     source:
-      uri: git@github.com:cfmobile/environment-pool.git
-      branch: trigger-test
-      pool: pooltriggertest/blue
+      uri: git@github.com:cfmobile/pool-trigger-resource.git
+      branch: examples
+      pool: examples/pools/blue
       private_key: {{ci-bot-key}}
 
 jobs:
