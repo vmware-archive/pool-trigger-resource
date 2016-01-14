@@ -1,192 +1,332 @@
-#!/bin/sh
+#!/bin/bash
 
-set -e -u
+set -e
 
-set -o pipefail
 
-resource_dir=/opt/resource
 
-run() { (
-  export TMPDIR=$(mktemp -d ${TMPDIR_ROOT}/git-tests.XXXXXX)
+print_header() {
+  local params=($@)
+  local additional_params
+  local flags
 
-  echo -e 'running \e[33m'"$@"$'\e[0m...'
-  eval "$@" 2>&1  # | sed -e 's/^/  /g'
-  echo ""
-  )
-  return $?
+  while [ ${#params[@]} -gt 0 ]; do
+    case ${params[0]} in
+      -f|--flag)
+        flags+=${params[1]}
+        params=(${params[@]:2})
+        ;;
+      *)
+        additional_params+=(${params[0]})
+        params=(${params[@]:1})
+    esac
+  done
+
+  local flag
+
+  local print_it
+
+  for flag in "${flags[@]}"; do
+    if [ "$flag" == "don't" ]; then
+      print_it=yes
+    fi
+  done
+
+  if [ "$print_it" != "yes" ]; then
+    return 0
+  fi
+
+  local header_message=${additional_params[*]}
+
+  [ -n "$header_message" ]
+
+  echo
+  echo
+  echo "####################################"
+  echo "#"
+  echo "# $header_message"
+  echo "#"
+  echo "####################################"
+  echo
+  echo
 }
 
 create_remote() {
-  (
-    set -e
 
-    local remoteRepo=$TMPDIR/remote
-    mkdir "$remoteRepo"
-    cd "$remoteRepo"
-    git init -q --bare
-    cd - > /dev/null # pipe to dev null to prevent output
+  local remoteRepo="$TMPDIR"/remote
+  mkdir "$remoteRepo"
+  pushd "$remoteRepo"
+  git init --bare
+  popd
 
-    local repoDir
-    repoDir=$(clone_repo "$remoteRepo") 2>/dev/null
-    cd "$repoDir"
-    # start with an initial commit
-    git \
-      -c user.name='test' \
-      -c user.email='test@example.com' \
-      commit -q --allow-empty -m "init"
+  export REPO_REMOTE="$remoteRepo"
 
-    mkdir my_pool
-    mkdir my_pool/unclaimed
-    mkdir my_pool/claimed
+  print_header "creating remote repo: $REPO_REMOTE"
 
-    mkdir my_other_pool
-    mkdir my_other_pool/unclaimed
-    mkdir my_other_pool/claimed
-
-    touch my_pool/unclaimed/.gitkeep
-    touch my_pool/claimed/.gitkeep
-
-    touch my_other_pool/unclaimed/.gitkeep
-    touch my_other_pool/claimed/.gitkeep
-
-    git add .
-    git commit -q -m "setup lock"
-
-    git push --quiet > /dev/null
-    # print resulting repo
-    # echo "TEE " | tee /dev/stderr
-    echo "$remoteRepo"
-  )
+  make_initial_commit
 }
 
-# clone a remote repo and return its path
+make_initial_commit() {
+  clone_repo
+  pushd "$REPO_CLONE"
+
+  git \
+    -c user.name='test' \
+    -c user.email='test@example.com' \
+    commit --allow-empty -m "init"
+
+  mkdir my_pool
+  mkdir my_pool/unclaimed
+  mkdir my_pool/claimed
+
+  mkdir my_other_pool
+  mkdir my_other_pool/unclaimed
+  mkdir my_other_pool/claimed
+
+  touch my_pool/unclaimed/.gitkeep
+  touch my_pool/claimed/.gitkeep
+
+  touch my_other_pool/unclaimed/.gitkeep
+  touch my_other_pool/claimed/.gitkeep
+
+  git add .
+  git \
+    -c user.name='test' \
+    -c user.email='test@example.com' \
+    commit \
+    -m "setup lock"
+
+  git push 
+
+  popd
+}
+
 clone_repo() {
-    local remoteRepo=$1 
-    local repoDir=$(mktemp $TMPDIR/repo-XXXXXX)
-    rm -rf $repoDir
-    git clone $remoteRepo $repoDir --quiet
-    cd $repoDir
-    pwd
+  [ -n "$REPO_REMOTE" ]
+
+  if [ -n "$REPO_CLONE" ]; then
+    rm -rf "$REPO_CLONE"
+  fi
+
+  export REPO_CLONE
+  REPO_CLONE=$(mktemp -d "$TMPDIR"/repo-XXXXXX)
+
+  print_header "cloning repo: $REPO_CLONE"
+
+  git clone "$REPO_REMOTE" "$REPO_CLONE" 
 }
 
 make_commit_to_file_on_branch() {
-  local repo=$(clone_repo $1)
-  local file=$2
-  local branch=$3
-  local msg=${4-x}
+  print_header "committing file"
 
-  # ensure branch exists
-  if ! git -C $repo rev-parse --verify $branch >/dev/null; then
-    git -C $repo branch $branch master
+  local file=$1
+  local branch=$2
+  local msg=${3-x}
+
+  clone_repo
+  pushd "$REPO_CLONE"
+
+  if ! git rev-parse --verify "$branch" >/dev/null; then
+    git branch "$branch" master
   fi
 
-  # switch to branch
-  git -C $repo checkout -q $branch
+  git checkout "$branch"
 
-  # modify file and commit
-  echo $msg >> $repo/$file
-  git -C $repo add $file
-  git -C $repo \
+  echo "$msg" >> "$REPO_CLONE"/"$file"
+  git add "$file"
+  git \
     -c user.name='test' \
     -c user.email='test@example.com' \
-    commit -q -m "commit $(wc -l $repo/$file) $msg"
+    commit -m "commit $(wc -l "$REPO_CLONE"/"$file") $msg"
 
-  git -C $repo push --quiet > /dev/null
-  # output resulting sha
-  git -C $repo rev-parse HEAD
+  git push 
+
+  popd
 }
 
 make_commit_to_file() {
-  make_commit_to_file_on_branch $1 $2 master "${3-}"
+  make_commit_to_file_on_branch "$1" master "${2-}"
 }
 
 remove_file() {
-  remove_file_on_branch $1 $2 master "${3-}"
+  remove_file_on_branch "$1" master "${2-}"
 }
-remove_file_on_branch() {
-  local repo=$(clone_repo $1)
-  local file=$2
-  local branch=$3
-  local msg=${4-x}
 
-  # ensure branch exists
-  if ! git -C $repo rev-parse --verify $branch >/dev/null; then
-    git -C $repo branch $branch master
+remove_file_on_branch() {
+  print_header "removing file"
+
+  local file=$1
+  local branch=$2
+  local msg=${3-x}
+
+  clone_repo
+  pushd "$REPO_CLONE"
+
+  if ! git rev-parse --verify "$branch" >/dev/null; then
+    git branch "$branch" master
   fi
 
-  # switch to branch
-  git -C $repo checkout -q $branch
+  git checkout -q "$branch"
 
-  # modify file and commit
-  git -C $repo rm -q $file
-  git -C $repo \
+  git rm -q "$file"
+  git \
     -c user.name='test' \
     -c user.email='test@example.com' \
     commit -q -m "commit removed $file - $msg"
 
-  git -C $repo push --quiet > /dev/null
-  # output resulting sha
-  git -C $repo rev-parse HEAD
+  git push
+
+  popd
 }
 
 check_uri() {
-  local ref=${2-}
-  local refjson=""
+  [ -n "$REPO_REMOTE" ]
 
-  if [ -n "$ref" ]; then
-  	refjson=", version: { ref: \"$ref\" }"
+  export LAST_CHECK_REF
+
+  local refJsonFragment=""
+  if [ -n "$LAST_CHECK_REF" ]; then
+  	refJsonFragment=", version: { ref: $LAST_CHECK_REF }"
   fi
 
-  jq -n "{
+  local checkRequest
+  checkRequest=$(jq -n "{
     source: {
-      uri: $(echo $1 | jq -R .),
+      uri: $(echo "$REPO_REMOTE" | jq -R .),
       branch: \"master\",
       pool: \"my_pool\"
-    }$refjson
-  }" | ${resource_dir}/check | tee /dev/stderr
+    }$refJsonFragment
+  }")
+
+  print_header -f really "executing check: $checkRequest"
+
+  export CHECK_RESULT
+  CHECK_RESULT=$(echo "$checkRequest" | "$RESOURCE_DIR"/assets/check  ) #| tee /dev/stderr
+
+  print_header -f really "executed check: 
+  $CHECK_RESULT"
+
+  check_result_is_valid
+
+  local checkRef=""
+  checkRef=$(echo "$CHECK_RESULT" | 
+    jq .[0].ref
+  )
+
+  if [ "$checkRef" != "null" ]; then
+    print_header --flag really "checkRef is $checkRef"
+
+    LAST_CHECK_REF=$checkRef
+  fi
+
+  print_header "check returned: $CHECK_RESULT"
 }
 
-check_uri_should_match_ref() {
-  local repo=$1
-  local suppliedRef=$2
-  local expectedRef=$3
+check_uri_should_return_x_refs() {
+  local numRefs=$1
 
-  local checkUriResult
-  checkUriResult=$(check_uri $repo $suppliedRef)
+  print_header "validating $numRefs refs"
 
-  local refMatches
-  refMatches=$(echo "$checkUriResult" |
-   jq "
-    . == [
-      {ref: $(echo "$expectedRef" | jq -R .)}
-    ]
-  ")
+  [ -n "$numRefs" ]
 
-  if [ "$refMatches" = "false" ]; then
-    echo "Output $checkUriResult did not match expected ref $expectedRef"
-    exit 1
-  fi
+  for (( i = 0; i < numRefs; i++ )); do
+    print_header "expecting ref on check $i"
+
+    check_uri
+    check_result_is_non_empty
+  done
 }
 
-check_pending_triggers_equal() {
-  local repo=$(clone_repo $1)
-  local expectedPending=${2-0}
-  local pending=$(cat $repo/my_pool/.pending-triggers)
+check_uri_should_return_x_refs_and_drain() {
+  local numRefs=$1
 
-  if [ ! -f $repo/my_pool/.pending-triggers ]; then
-    echo ".pending-triggers file was not written"
-    exit 1
-  fi
+  print_header "validating $numRefs refs then drained"
 
-  if [ $pending -ne $expectedPending ]; then
-    echo ".pending-triggers $pending is not equal to $expectedPending"
-    exit 1
-  fi
+  [ -n "$numRefs" ]
+
+  check_uri_should_return_x_refs "$numRefs"
+
+  check_uri_should_be_drained
 }
 
-pending_triggers_should_not_exist() {
-  local repo=$(clone_repo $1)
-  if [ -f $repo/my_pool/.pending_triggers ]; then 
-    exit 1
-  fi
+check_uri_should_be_drained() {
+  print_header "validating drained"
+
+  local drainThreshold=2
+
+  local i
+  for (( i = 0; i < drainThreshold; i++ )); do
+    print_header "expecting empty on drain-check $i"
+
+    check_uri
+
+    check_result_is_empty
+  done
+}
+
+check_result_is_empty() {
+  print_header "validating result is empty: $CHECK_RESULT"
+
+  local numElements
+  numElements=$(echo "$CHECK_RESULT" | jq length)
+
+  [ "$numElements" -eq "0" ]
+}
+
+check_result_is_non_empty() {
+  print_header "validating result non-empty: $CHECK_RESULT"
+
+  local numElements
+  numElements=$(echo "$CHECK_RESULT" | jq length)
+
+  [ "$numElements" -gt "0" ]
+}
+
+check_result_is_valid() {
+  print_header "validating check result: $CHECK_RESULT"
+
+  [ -n "$CHECK_RESULT" ]
+
+  print_header "check result is non-nil"
+
+  local resultType
+  resultType=$(echo "$CHECK_RESULT" | jq type)
+
+  print_header "check result type is $resultType"
+
+  [ "$resultType" == "\"array\"" ]
+
+  local numRefs
+  numRefs=$(echo "$CHECK_RESULT" | jq length)
+
+  print_header "check result has $numRefs elements"
+
+  local i
+  for (( i = 0; i < numRefs; i++ )); do
+    local element
+    element=$(echo "$CHECK_RESULT" | jq .[$i])
+
+    print_header "check result element $i is $element"
+
+    local elementType
+    elementType=$(echo "$element" | jq type)
+
+    print_header "check result element $i type is $elementType"
+
+    [ "$elementType" == "\"object\"" ]
+
+    local elementSize
+    elementSize=$(echo "$element" | jq length)
+
+    [ "$elementSize" -eq 1 ]
+
+    local elementRef
+    elementRef=$(echo "$element" | jq .ref )
+
+    [ -n "$elementRef" ]
+
+    #check for uniqueness
+
+  done
+
+  print_header "result is valid: $CHECK_RESULT"
 }

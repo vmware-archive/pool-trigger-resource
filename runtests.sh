@@ -1,6 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
-set -e 
+set -e
 
-## run tests
-docker run -v ~/workspace/pool-trigger-resource/tests:/opt/resource-tests triggers /opt/resource-tests/check.sh
+params=$*
+
+docker run --rm -v "$(pwd)":/opt/resource cfmobile/bosh-release /bin/bash -c "/opt/resource/tests/tests.sh $params && echo \"all tests passed\" || echo \"tests failed\""
