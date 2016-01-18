@@ -13,7 +13,6 @@ Do not use it to get or put locks.
 ##### Behaviour is only guaranteed if 
 ###### 1. A SINGLE job triggers on the configured pool.
 ###### 2. No other job claims locks on the same pool.
-###### 3. Locks are NEVER removed from that pool by other means.
 
 
 #### Usage
