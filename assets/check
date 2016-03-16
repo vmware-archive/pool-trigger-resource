@@ -76,6 +76,9 @@ fi
 git config user.name "CI Pool Trigger Resource"
 git config user.email "ci-pool-trigger@localhost"
 
+# This is needed due to a git version bump
+git config --global push.default matching
+
 ###########
 #
 # end git setup
